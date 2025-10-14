@@ -50,13 +50,6 @@ void normalize_log_line(std::string& line)
     {
         line = line.substr(id_block + 1);
     }
-
-    // Trim leading spaces
-    size_t start = line.find_first_not_of(" \t");
-    if (start != std::string::npos)
-    {
-        line = line.substr(start);
-    }
 }
 
 int main()
