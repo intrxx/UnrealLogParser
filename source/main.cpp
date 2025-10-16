@@ -101,7 +101,7 @@ bool parse_arguments(int argc, char *argv[])
         options.add_options()
                 ("h,help", "Print help")
                 ("t,telemetry", "Enable telemetry for execution time.")
-                ("v,verbosity", "Minimum log line verbosity to include in result (error|warning|display).", cxxopts::value<std::string>()->default_value("warning"))
+                ("v,verbosity", "Minimum log line verbosity level to include in result (error|warning|display).", cxxopts::value<std::string>()->default_value("warning"))
                 ("p,path", "Optional path to folder which contains logs to parse.", cxxopts::value<std::string>())
                 ("r,result", "Optional result path to create the ParsingResult.txt", cxxopts::value<std::string>());
 
@@ -116,14 +116,14 @@ bool parse_arguments(int argc, char *argv[])
         }
 
         parser_options::minimal_verbosity = result["v"].as<std::string>();
-        std::cout << "Parsing with minimal verbosity: " << parser_options::minimal_verbosity << std::endl;
+        std::cout << "Parsing with minimal verbosity level: " << parser_options::minimal_verbosity << std::endl;
 
         if(result.count("t"))
         {
             std::cout << "Parsing with telemetry." << std::endl;
             parser_options::with_telemetry = true;
         }
-        
+
         if(result.count("p"))
         {
             parser_options::optional_folder_path = result["p"].as<std::string>();
