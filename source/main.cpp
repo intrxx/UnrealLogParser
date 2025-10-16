@@ -4,10 +4,9 @@
 #include <vector>
 #include <filesystem>
 #include <unordered_set>
+#include <chrono>
 
 #include "../include/cxxopts.hpp"
-
-#include <chrono>
 
 namespace parser_options
 {
@@ -116,14 +115,15 @@ bool parse_arguments(int argc, char *argv[])
             return false;
         }
 
+        parser_options::minimal_verbosity = result["v"].as<std::string>();
+        std::cout << "Parsing with minimal verbosity: " << parser_options::minimal_verbosity << std::endl;
+
         if(result.count("t"))
         {
             std::cout << "Parsing with telemetry." << std::endl;
             parser_options::with_telemetry = true;
         }
-
-        parser_options::minimal_verbosity = result["v"].as<std::string>();
-
+        
         if(result.count("p"))
         {
             parser_options::optional_folder_path = result["p"].as<std::string>();
@@ -156,15 +156,12 @@ bool parse_arguments(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+    // Do it regardless of with_telemetry arg as at this point we don't know if it is set.
+    std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
+
     if(!parse_arguments(argc, argv))
     {
         return 1;
-    }
-
-    std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>> start;
-    if(parser_options::with_telemetry)
-    {
-        start = std::chrono::high_resolution_clock::now();
     }
 
     bool create_default = false;
@@ -197,6 +194,14 @@ int main(int argc, char *argv[])
     {
         std::cerr << "Failed to construct keywords!";
         return 1;
+    }
+
+    std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>> setup_end;
+    if(parser_options::with_telemetry)
+    {
+        setup_end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration setup_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*setup_end - start);
+        std::cout << "Setup took: " << setup_duration << std::endl;
     }
 
     uint32_t lines_count = 0;
@@ -282,10 +287,10 @@ int main(int argc, char *argv[])
     parsed_output_file << "Unique lines captured: " << unique_captured_lines_count << std::endl;
 
     std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>> parsing_end;
-    if(parser_options::with_telemetry && start)
+    if(parser_options::with_telemetry && setup_end)
     {
         parsing_end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration parsing_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*parsing_end - *start);
+        std::chrono::duration parsing_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*parsing_end - *setup_end);
         std::cout << "Parsing took: " << parsing_duration << std::endl;
         parsed_output_file << "Parsing took: " << parsing_duration << std::endl;
     }
@@ -297,12 +302,12 @@ int main(int argc, char *argv[])
                   return a->error_count > b->error_count;
               });
 
+    std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>> sorting_end;
     if(parser_options::with_telemetry && parsing_end)
     {
-        std::chrono::time_point sorting_end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration sorting_duration = std::chrono::duration_cast<std::chrono::milliseconds>(sorting_end - *parsing_end);
+        sorting_end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration sorting_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*sorting_end - *parsing_end);
         std::cout << "Sorting took: " << sorting_duration << std::endl;
-        parsed_output_file << "Sorting took: " << sorting_duration << std::endl;
     }
 
     for(const std::shared_ptr<parsed_error>& error : sorted_parsed_text)
@@ -314,10 +319,12 @@ int main(int argc, char *argv[])
         parsed_output_file << "Category: " << error->error_category << std::endl;
     }
 
-    if(parser_options::with_telemetry && start)
+    if(parser_options::with_telemetry && sorting_end)
     {
         std::chrono::time_point end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration program_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - *start);
+        std::chrono::duration writing_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - *sorting_end);
+        std::cout << "Writing to file took: " << writing_duration << std::endl;
+        std::chrono::duration program_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         std::cout << "Execution time: " << program_duration << std::endl;
     }
     return 0;
