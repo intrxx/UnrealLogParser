@@ -5,10 +5,10 @@ Compact, fast and easy to use Unreal Engine targeted Log Parser.
 ## Details
 
 Parses every log line with targeted verbosity into: 
-- Original line: line
-- Count: line count
-- Verbosity: line verbosity level (e.g. Error)
-- Category: log category (e.g. LogAbilitySystem)
+- Original line: **normalized log line**
+- Count: **line count**
+- Verbosity: **line verbosity level (e.g. Error)**
+- Category: **log category (e.g. LogAbilitySystem)**
 and sorts them in descending order.
 
 ```
