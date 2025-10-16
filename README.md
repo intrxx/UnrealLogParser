@@ -1,15 +1,24 @@
 # Unreal Log Parser
 
-Compact, fast and easy to use Unreal Engine targeted Log Parser. Parses every log line with targeted verbosity into:
+Compact, fast and easy to use Unreal Engine targeted Log Parser.
 
 ## Details
 
-Original line: line
-Count: line count
-Verbosity: line verbosity level (e.g. Error)
-Category: log category (e.g. LogAbilitySystem)
-and sorts them in descending order. It also have some useful parameters:
+Parses every log line with targeted verbosity into: 
+- Original line: line
+- Count: line count
+- Verbosity: line verbosity level (e.g. Error)
+- Category: log category (e.g. LogAbilitySystem)
+and sorts them in descending order.
 
+```
+Original line: LogAbilitySystem: Warning: No GameplayCueNotifyPaths were specified in DefaultGame.ini under [/Script/GameplayAbilities.AbilitySystemGlobals]. Falling back to using all of /Game/. This may be slow on large projects. Consider specifying which paths are to be searched.
+Count: 2
+Verbosity:  Warning
+Category: LogAbilitySystem
+```
+
+It also have some useful parameters:
 - `-t enables telemetry`
 - `-v [error|warning|display]` allows to specify minimum verbosity level to be included in the parsing process
 - `-p [path to logs to parse]` allows to specify path to the folder containing logs to parse
