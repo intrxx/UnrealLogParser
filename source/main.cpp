@@ -16,6 +16,43 @@ namespace parser_options
     std::filesystem::path optional_result_path;
 }
 
+struct parser_stats
+{
+public:
+    void increment_verbosity_count(const std::string& verbosity)
+    {
+        auto it = verbosity_to_count_map.find(verbosity);
+        if(it != verbosity_to_count_map.end())
+        {
+            it->second++;
+        }
+    }
+
+    void increment_category_count(const std::string& category)
+    {
+        auto it = unique_categories_to_count_map.find(category);
+        if(it != unique_categories_to_count_map.end())
+        {
+            it->second++;
+            return;
+        }
+        unique_categories_to_count_map.insert(std::pair<std::string, uint32_t>(category, 1));
+    }
+
+public:
+    uint32_t lines_count = 0;
+    uint32_t unique_captured_lines_count = 0;
+
+    std::unordered_map<std::string, uint32_t> verbosity_to_count_map =
+            {
+                    {"Error", 0},
+                    {"Warning", 0},
+                    {"Display", 0}
+            };
+
+    std::map<std::string, uint32_t> unique_categories_to_count_map;
+};
+
 struct parsed_error
 {
 public:
@@ -71,11 +108,12 @@ bool construct_keywords(std::vector<std::string>& out_keywords)
             return std::tolower(c);
         });
 
-    static const std::vector<std::pair<std::string, std::string>> verbosity_levels = {
-            {"error", "Error:"},
-            {"warning", "Warning:"},
-            {"display", "Display:"}
-    };
+    static const std::vector<std::pair<std::string, std::string>> verbosity_levels =
+        {
+                {"error", "Error:"},
+                {"warning", "Warning:"},
+                {"display", "Display:"}
+        };
 
     out_keywords.clear();
     for (const auto& [key, value] : verbosity_levels)
@@ -111,16 +149,16 @@ bool parse_arguments(int argc, char *argv[])
 
         if(result.count("help"))
         {
-            std::cout << options.help({"", "Group"}) << std::endl;
+            std::cout << options.help({"", "Group"}) << "\n";
             return false;
         }
 
         parser_options::minimal_verbosity = result["v"].as<std::string>();
-        std::cout << "Parsing with minimal verbosity level: " << parser_options::minimal_verbosity << std::endl;
+        std::cout << "Parsing with minimal verbosity level: " << parser_options::minimal_verbosity;
 
         if(result.count("t"))
         {
-            std::cout << "Parsing with telemetry." << std::endl;
+            std::cout << "\nParsing with telemetry.";
             parser_options::with_telemetry = true;
         }
 
@@ -132,7 +170,7 @@ bool parse_arguments(int argc, char *argv[])
                 std::cerr << "Provided " << parser_options::optional_folder_path << " [-p] folder path is invalid";
                 return false;
             }
-            std::cout << "Parsing files from path: " << parser_options::optional_folder_path << std::endl;
+            std::cout << "\nParsing files from path: " << parser_options::optional_folder_path;
         }
 
         if(result.count("r"))
@@ -143,12 +181,12 @@ bool parse_arguments(int argc, char *argv[])
                 std::cerr << "Provided " << parser_options::optional_result_path << " [-r] result path is invalid";
                 return false;
             }
-            std::cout << "Parsing result will be created in: " << parser_options::optional_result_path << std::endl;
+            std::cout << "\nParsing result will be created in: " << parser_options::optional_result_path;
         }
     }
     catch (const cxxopts::exceptions::exception& arg_parsing_error)
     {
-        std::cout << "Error while trying to parse options: " << arg_parsing_error.what() << std::endl;
+        std::cout << "\nError while trying to parse options: " << arg_parsing_error.what();
         return false;
     }
     return true;
@@ -156,8 +194,10 @@ bool parse_arguments(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-    // Do it regardless of with_telemetry arg as at this point we don't know if it is set.
+    // Do it regardless of with_telemetry arg as at this point I don't know if it is set.
     std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
+
+    std::cout << "\nStarting to parse!\n";
 
     if(!parse_arguments(argc, argv))
     {
@@ -201,11 +241,10 @@ int main(int argc, char *argv[])
     {
         setup_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration setup_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*setup_end - start);
-        std::cout << "Setup took: " << setup_duration << std::endl;
+        std::cout << "\nSetup took: " << setup_duration;
     }
 
-    uint32_t lines_count = 0;
-    uint32_t unique_captured_lines_count = 0;
+    parser_stats parser_stats;
     std::unordered_set<std::shared_ptr<parsed_error>, parsed_error_hash, parsed_error_equal> parsed_text;
     for(const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(logs_folder_name))
     {
@@ -221,7 +260,7 @@ int main(int argc, char *argv[])
             std::string line;
             while(getline(input_stream, line))
             {
-                lines_count++;
+                parser_stats.lines_count++;
                 for(const std::string& keyword : keywords)
                 {
                     if(line.find(keyword) != std::string::npos)
@@ -244,7 +283,7 @@ int main(int argc, char *argv[])
                                 if(category_block_end_position != std::string::npos)
                                 {
                                     potential_new_error->error_verbosity = line.substr(
-                                            category_block_end_position + 1, error_type_block_end_position - category_block_end_position - 1);
+                                            category_block_end_position + 2, error_type_block_end_position - category_block_end_position - 2);
                                 }
                                 else
                                 {
@@ -257,16 +296,58 @@ int main(int argc, char *argv[])
                             }
 
                             parsed_text.insert(potential_new_error);
-                            unique_captured_lines_count++;
+                            parser_stats.unique_captured_lines_count++;
+                            parser_stats.increment_verbosity_count(potential_new_error->error_verbosity);
+                            parser_stats.increment_category_count(potential_new_error->error_category);
                         }
                         else if(iterator != nullptr)
                         {
-                            (*iterator)->error_count += 1;
+                            const std::shared_ptr<parsed_error>& known_error = (*iterator);
+                            known_error->error_count += 1;
+                            parser_stats.increment_verbosity_count(known_error->error_verbosity);
+                            parser_stats.increment_category_count(known_error->error_category);
                         }
                     }
                 }
             }
         }
+    }
+
+    std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>> parsing_end;
+    if(parser_options::with_telemetry && setup_end)
+    {
+        parsing_end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration parsing_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*parsing_end - *setup_end);
+        std::cout << "\nParsing took: " << parsing_duration;
+    }
+
+    std::vector<std::shared_ptr<parsed_error>> sorted_parsed_text(parsed_text.begin(), parsed_text.end());
+    std::sort(sorted_parsed_text.begin(), sorted_parsed_text.end(),
+              [](const std::shared_ptr<parsed_error>& a, const std::shared_ptr<parsed_error>& b)
+              {
+                  return a->error_count > b->error_count;
+              });
+
+    std::vector<std::pair<std::string, uint32_t>> sorted_verbosity_count(parser_stats.verbosity_to_count_map.begin(), parser_stats.verbosity_to_count_map.end());
+    std::sort(sorted_verbosity_count.begin(), sorted_verbosity_count.end(),
+              [](const auto& a, const auto& b)
+              {
+                  return a.second > b.second;
+              });
+
+    std::vector<std::pair<std::string, uint32_t>> sorted_unique_categories(parser_stats.unique_categories_to_count_map.begin(), parser_stats.unique_categories_to_count_map.end());
+    std::sort(sorted_unique_categories.begin(), sorted_unique_categories.end(),
+              [](const auto& a, const auto& b)
+              {
+                  return a.second > b.second;
+              });
+
+    std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>> sorting_end;
+    if(parser_options::with_telemetry && parsing_end)
+    {
+        sorting_end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration sorting_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*sorting_end - *parsing_end);
+        std::cout << "\nSorting took: " << sorting_duration;
     }
 
     std::filesystem::path result_path = "ParsingResult.txt";
@@ -282,50 +363,39 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    parsed_output_file << "  PARSING DATA  " << std::endl;
-    parsed_output_file << "Log lines count: " << lines_count << std::endl;
-    parsed_output_file << "Unique lines captured: " << unique_captured_lines_count << std::endl;
+    parsed_output_file << "---- Parsing data ----\n";
+    parsed_output_file << "Log lines count: " << parser_stats.lines_count;
+    parsed_output_file << "\nUnique lines captured: " << parser_stats.unique_captured_lines_count;
 
-    std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>> parsing_end;
-    if(parser_options::with_telemetry && setup_end)
+    parsed_output_file << "\nVerbosity counts: ";
+    for(const std::pair<std::string, uint32_t>& pair : sorted_verbosity_count)
     {
-        parsing_end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration parsing_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*parsing_end - *setup_end);
-        std::cout << "Parsing took: " << parsing_duration << std::endl;
-        parsed_output_file << "Parsing took: " << parsing_duration << std::endl;
+        parsed_output_file << "[" << pair.first << " | "  << pair.second << "] ";
     }
 
-    std::vector<std::shared_ptr<parsed_error>> sorted_parsed_text(parsed_text.begin(), parsed_text.end());
-    std::sort(sorted_parsed_text.begin(), sorted_parsed_text.end(),
-              [](const std::shared_ptr<parsed_error>& a, const std::shared_ptr<parsed_error>& b)
-              {
-                  return a->error_count > b->error_count;
-              });
-
-    std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>> sorting_end;
-    if(parser_options::with_telemetry && parsing_end)
+    parsed_output_file << "\n\nUnique log categories counts: ";
+    for(const std::pair<std::string, uint32_t>& pair : sorted_unique_categories)
     {
-        sorting_end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration sorting_duration = std::chrono::duration_cast<std::chrono::milliseconds>(*sorting_end - *parsing_end);
-        std::cout << "Sorting took: " << sorting_duration << std::endl;
+        parsed_output_file << "[" << pair.first << " | " << pair.second << "] ";
     }
+
+    parsed_output_file << "\n\n\n---- Parsing data ----\n";
 
     for(const std::shared_ptr<parsed_error>& error : sorted_parsed_text)
     {
-        parsed_output_file << "\n";
-        parsed_output_file << "Original line: " << error->error_line << std::endl;
-        parsed_output_file << "Count: " << error->error_count << std::endl;
-        parsed_output_file << "Verbosity: " << error->error_verbosity << std::endl;
-        parsed_output_file << "Category: " << error->error_category << std::endl;
+        parsed_output_file << "\n\nOriginal line: " << error->error_line;
+        parsed_output_file << "\nCount: " << error->error_count;
+        parsed_output_file << "\nVerbosity: " << error->error_verbosity;
+        parsed_output_file << "\nCategory: " << error->error_category;
     }
 
     if(parser_options::with_telemetry && sorting_end)
     {
         std::chrono::time_point end = std::chrono::high_resolution_clock::now();
         std::chrono::duration writing_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - *sorting_end);
-        std::cout << "Writing to file took: " << writing_duration << std::endl;
+        std::cout << "\nWriting to file took: " << writing_duration;
         std::chrono::duration program_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        std::cout << "Execution time: " << program_duration << std::endl;
+        std::cout << "\nExecution time: " << program_duration << std::endl;
     }
     return 0;
 }
