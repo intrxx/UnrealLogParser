@@ -1,3 +1,5 @@
+// Copyright 2025 out of sCope - intrxx
+
 #include <iostream>
 #include <fstream>
 #include <utility>
