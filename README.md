@@ -19,7 +19,7 @@ Category: LogAbilitySystem
 ```
 
 It also have some useful parameters:
-- `-t enables telemetry`
+- `-t` enables telemetry
 - `-v [error|warning|display]` allows to specify minimum verbosity level to be included in the parsing process
 - `-p [path to logs to parse]` allows to specify path to the folder containing logs to parse
 - `-r [path to create result .txt]` allows to specify path that will be used to create result .txt in
